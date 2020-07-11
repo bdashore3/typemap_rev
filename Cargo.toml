@@ -1,0 +1,7 @@
+[package]
+name = "typemap_rev"
+version = "0.1.0"
+authors = ["kingbri <bdashore3@gmail.com>", "alex <acdenissk69@gmail.com>"]
+edition = "2018"
+
+[dependencies]
