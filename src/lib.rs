@@ -37,7 +37,7 @@ impl TypeMap {
     /// with the new value.
     ///
     /// ```rust
-    /// use serenity::utils::{TypeMap, TypeMapKey};
+    /// use typemap_rev::{TypeMap, TypeMapKey};
     ///
     /// struct Number;
     ///
@@ -84,7 +84,7 @@ impl TypeMap {
     /// Returns `None` if it couldn't be found.
     ///
     /// ```rust
-    /// use serenity::utils::{TypeMap, TypeMapKey};
+    /// use typemap_rev::{TypeMap, TypeMapKey};
     ///
     /// struct Number;
     ///
@@ -113,7 +113,7 @@ impl TypeMap {
     /// Returns `None` if it couldn't be found.
     ///
     /// ```rust
-    /// use serenity::utils::{TypeMap, TypeMapKey};
+    /// use typemap_rev::{TypeMap, TypeMapKey};
     ///
     /// struct Number;
     ///
