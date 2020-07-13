@@ -1,7 +1,7 @@
 [package]
 name = "typemap_rev"
 description = "A hashmap, but stores types as keys"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["kingbri <bdashore3@gmail.com>", "alex <acdenissk69@gmail.com>"]
 repository = "https://github.com/bdashore3/typemap_rev"
 homepage = "https://github.com/bdashore3/typemap_rev"
