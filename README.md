@@ -8,7 +8,7 @@ Crate created by: [kingbri](https://github.com/bdashore3)
 
 ## Documentation
 
-There is currently no hosted documentation for this crate. Clone this repository and run `cargo doc --open` and it will pull up documentation for this crate.
+Documentation is located [here](https://docs.rs/typemap_rev/0.1.2/typemap_rev/)
 
 ## Example
 
