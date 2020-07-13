@@ -1,11 +1,13 @@
 [package]
 name = "typemap_rev"
+description = "A hashmap, but stores types as keys"
 version = "0.1.0"
 authors = ["kingbri <bdashore3@gmail.com>", "alex <acdenissk69@gmail.com>"]
-license = "MIT"
-readme = "README.md"
 repository = "https://github.com/bdashore3/typemap_rev"
 homepage = "https://github.com/bdashore3/typemap_rev"
+license = "MIT"
+readme = "README.md"
+keywords = ["type", "typemap"]
 edition = "2018"
 
 [dependencies]
