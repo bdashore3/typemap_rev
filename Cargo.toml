@@ -9,5 +9,3 @@ license = "ISC"
 readme = "README.md"
 keywords = ["type", "typemap"]
 edition = "2018"
-
-[dependencies]

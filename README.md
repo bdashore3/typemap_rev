@@ -8,13 +8,12 @@ Crate created by: [kingbri](https://github.com/bdashore3)
 
 ## Documentation
 
-Documentation is located [here](https://docs.rs/typemap_rev/0.1.2/typemap_rev/)
+Documentation is located [here](https://docs.rs/typemap_rev)
 
 ## Example
 
 ```rust
-extern crate typemap_rev;
-use typemap_rev::{TypeMap, TypeMapKey};
+use typemap_rev::{ TypeMap, TypeMapKey };
 
 struct Number;
 
