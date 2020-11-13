@@ -139,6 +139,35 @@ impl TypeMap {
             .get_mut(&TypeId::of::<T>())
             .and_then(|b| b.downcast_mut::<T::Value>())
     }
+
+    /// Removes a key from the map, returning the value at the key if the key was previously in the
+    /// map.
+    ///
+    /// Returns `None` if the key has not been in the map.
+    ///
+    /// ```rust
+    /// use typemap_rev::{TypeMap, TypeMapKey};
+    ///
+    /// struct Text;
+    ///
+    /// impl TypeMapKey for Text {
+    ///     type Value = String;
+    /// }
+    ///
+    /// let mut map = TypeMap::new();
+    /// map.insert::<Text>(String::from("Hello TypeMap!"));
+    /// assert!(map.remove::<Text>().is_some());
+    /// assert!(map.get::<Text>().is_none());
+    /// ```
+    pub fn remove<T>(&mut self) -> Option<T::Value>
+    where
+        T: TypeMapKey
+    {
+        self.0
+            .remove(&TypeId::of::<T>())
+            .and_then(|b| (b as Box<dyn Any>).downcast::<T::Value>().ok())
+            .map(|b| *b)
+    }
 }
 
 /// A view into a single entry in the [`TypeMap`],
@@ -295,5 +324,28 @@ mod test {
         assert_eq!(map.get::<Counter>(), None);
         *map.entry::<Counter>().or_insert(0) += 42;
         assert_eq!(*map.get::<Counter>().unwrap(), 42);
+    }
+
+    struct Text;
+
+    impl TypeMapKey for Text {
+        type Value = String;
+    }
+
+    #[test]
+    fn typemap_remove() {
+        let mut map = TypeMap::new();
+
+        map.insert::<Text>(String::from("foobar"));
+
+        // This will give a &String
+        assert_eq!(map.get::<Text>().unwrap(), "foobar");
+
+        // Ensure we get an owned String back.
+        let original: String = map.remove::<Text>().unwrap();
+        assert_eq!(original, "foobar");
+
+        // Ensure our String is gone from the map.
+        assert!(map.get::<Text>().is_none());
     }
 }
