@@ -48,6 +48,7 @@ impl TypeMap {
     /// map.insert::<Number>(42);
     /// assert!(map.contains_key::<Number>());
     /// ```
+    #[inline]
     pub fn contains_key<T>(&self) -> bool
     where
         T: TypeMapKey
@@ -182,6 +183,7 @@ impl TypeMap {
     /// assert!(map.remove::<Text>().is_some());
     /// assert!(map.get::<Text>().is_none());
     /// ```
+    #[inline]
     pub fn remove<T>(&mut self) -> Option<T::Value>
     where
         T: TypeMapKey
