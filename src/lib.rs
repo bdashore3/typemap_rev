@@ -32,6 +32,29 @@ impl TypeMap {
         Self(HashMap::new())
     }
 
+    /// Returns `true` if the map contains a value for the specified key.
+    ///
+    /// ```rust
+    /// use typemap_rev::{TypeMap, TypeMapKey};
+    ///
+    /// struct Number;
+    ///
+    /// impl TypeMapKey for Number {
+    ///     type Value = i32;
+    /// }
+    ///
+    /// let mut map = TypeMap::new();
+    /// assert!(!map.contains_key::<Number>());
+    /// map.insert::<Number>(42);
+    /// assert!(map.contains_key::<Number>());
+    /// ```
+    pub fn contains_key<T>(&self) -> bool
+    where
+        T: TypeMapKey
+    {
+        self.0.contains_key(&TypeId::of::<T>())
+    }
+
     /// Inserts a new value based on its [`TypeMapKey`].
     /// If the value has been already inserted, it will be overwritten
     /// with the new value.
