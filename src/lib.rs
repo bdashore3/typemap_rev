@@ -32,7 +32,7 @@ impl TypeMap {
         Self(HashMap::new())
     }
 
-    /// Returns `true` if the map contains a value for the specified key.
+    /// Returns `true` if the map contains a value for the specified [`TypeMapKey`].
     ///
     /// ```rust
     /// use typemap_rev::{TypeMap, TypeMapKey};
@@ -164,10 +164,8 @@ impl TypeMap {
             .and_then(|b| b.downcast_mut::<T::Value>())
     }
 
-    /// Removes a key from the map, returning the value at the key if the key was previously in the
-    /// map.
-    ///
-    /// Returns `None` if the key has not been in the map.
+    /// Removes a value from the map based on its [`TypeMapKey`], returning the value or `None` if
+    /// the key has not been in the map.
     ///
     /// ```rust
     /// use typemap_rev::{TypeMap, TypeMapKey};
