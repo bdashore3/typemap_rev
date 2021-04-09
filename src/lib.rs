@@ -193,6 +193,12 @@ impl TypeMap {
     }
 }
 
+impl Default for TypeMap {
+    fn default() -> Self {
+        Self(HashMap::default())
+    }
+}
+
 /// A view into a single entry in the [`TypeMap`],
 /// which may either be vacant or occupied.
 ///
@@ -369,6 +375,16 @@ mod test {
         assert_eq!(original, "foobar");
 
         // Ensure our String is gone from the map.
+        assert!(map.get::<Text>().is_none());
+    }
+
+    #[test]
+    fn typemap_default() {
+        fn ensure_default<T: Default>() {}
+
+        ensure_default::<TypeMap>();
+
+        let map = TypeMap::default();
         assert!(map.get::<Text>().is_none());
     }
 }
