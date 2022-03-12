@@ -8,6 +8,8 @@ use std::collections::hash_map::{
     VacantEntry as HashMapVacantEntry,
 };
 use std::marker::PhantomData;
+use std::collections::hash_map::IntoIter;
+use std::iter::FromIterator;
 
 /// TypeMapKey is used to declare key types that are eligible for use
 /// with [`TypeMap`].
@@ -199,6 +201,27 @@ impl Default for TypeMap {
     }
 }
 
+impl Extend<(TypeId, Box<dyn Any + Send + Sync>)> for TypeMap  {
+    fn extend<T: IntoIterator<Item=(TypeId, Box<dyn Any + Send + Sync>)>>(&mut self, iter: T) {
+        self.0.extend(iter)
+    }
+}
+
+impl IntoIterator for TypeMap {
+    type Item = (TypeId, Box<dyn Any + Send + Sync>);
+    type IntoIter = IntoIter<TypeId, Box<dyn Any + Send + Sync>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl FromIterator<(TypeId, Box<dyn Any + Send + Sync>)> for TypeMap {
+    fn from_iter<T: IntoIterator<Item=(TypeId, Box<dyn Any + Send + Sync>)>>(iter: T) -> Self {
+        Self(HashMap::from_iter(iter))
+    }
+}
+
 /// A view into a single entry in the [`TypeMap`],
 /// which may either be vacant or occupied.
 ///
@@ -386,5 +409,31 @@ mod test {
 
         let map = TypeMap::default();
         assert!(map.get::<Text>().is_none());
+    }
+
+    #[test]
+    fn typemap_iter() {
+        let mut map = TypeMap::new();
+        map.insert::<Text>(String::from("foobar"));
+
+        // creating the iterator
+        let mut iterator = map.into_iter();
+
+        // ensuring that the iterator contains our entries
+        assert_eq!(iterator.next().unwrap().0, TypeId::of::<Text>());
+    }
+
+    #[test]
+    fn typemap_extend() {
+        let mut map = TypeMap::new();
+        map.insert::<Text>(String::from("foobar"));
+
+        let mut map_2 = TypeMap::new();
+        // extending our second map with the first one
+        map_2.extend(map);
+
+        // ensuring that the new map now contains the entries from the first one
+        let original = map_2.get::<Text>().unwrap();
+        assert_eq!(original, "foobar");
     }
 }
