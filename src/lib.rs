@@ -32,6 +32,24 @@ impl TypeMap {
         Self(HashMap::new())
     }
 
+    /// Returns the amount of entries in the map.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns an indicator whether the map is empty (no entries).
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Clears all entries in the map.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
     /// Returns `true` if the map contains a value for the specified [`TypeMapKey`].
     ///
     /// ```rust
@@ -356,7 +374,12 @@ mod test {
     fn typemap_counter() {
         let mut map = TypeMap::new();
 
+        assert_eq!(map.len(), 0);
+        assert!(map.is_empty());
+
         map.insert::<Counter>(0);
+        assert_eq!(map.len(), 1);
+        assert!(!map.is_empty());
 
         assert_eq!(*map.get::<Counter>().unwrap(), 0);
 
@@ -365,6 +388,11 @@ mod test {
         }
 
         assert_eq!(*map.get::<Counter>().unwrap(), 100);
+
+        map.clear();
+        assert!(map.get::<Counter>().is_none());
+        assert_eq!(map.len(), 0);
+        assert!(map.is_empty());
     }
 
     #[test]
