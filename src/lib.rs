@@ -1,15 +1,13 @@
 //! A hashmap whose keys are defined by types.
 
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
-use std::collections::hash_map::{
-    Entry as HashMapEntry,
-    OccupiedEntry as HashMapOccupiedEntry,
-    VacantEntry as HashMapVacantEntry,
-};
-use std::marker::PhantomData;
 use std::collections::hash_map::IntoIter;
+use std::collections::hash_map::{
+    Entry as HashMapEntry, OccupiedEntry as HashMapOccupiedEntry, VacantEntry as HashMapVacantEntry,
+};
+use std::collections::HashMap;
 use std::iter::FromIterator;
+use std::marker::PhantomData;
 
 /// TypeMapKey is used to declare key types that are eligible for use
 /// with [`TypeMap`].
@@ -53,7 +51,7 @@ impl TypeMap {
     #[inline]
     pub fn contains_key<T>(&self) -> bool
     where
-        T: TypeMapKey
+        T: TypeMapKey,
     {
         self.0.contains_key(&TypeId::of::<T>())
     }
@@ -81,7 +79,7 @@ impl TypeMap {
     #[inline]
     pub fn insert<T>(&mut self, value: T::Value)
     where
-        T: TypeMapKey
+        T: TypeMapKey,
     {
         self.0.insert(TypeId::of::<T>(), Box::new(value));
     }
@@ -92,7 +90,7 @@ impl TypeMap {
     #[inline]
     pub fn entry<T>(&mut self) -> Entry<'_, T>
     where
-        T: TypeMapKey
+        T: TypeMapKey,
     {
         match self.0.entry(TypeId::of::<T>()) {
             HashMapEntry::Occupied(entry) => Entry::Occupied(OccupiedEntry {
@@ -102,7 +100,7 @@ impl TypeMap {
             HashMapEntry::Vacant(entry) => Entry::Vacant(VacantEntry {
                 entry,
                 _marker: PhantomData,
-            })
+            }),
         }
     }
 
@@ -128,7 +126,7 @@ impl TypeMap {
     #[inline]
     pub fn get<T>(&self) -> Option<&T::Value>
     where
-        T: TypeMapKey
+        T: TypeMapKey,
     {
         self.0
             .get(&TypeId::of::<T>())
@@ -159,7 +157,7 @@ impl TypeMap {
     #[inline]
     pub fn get_mut<T>(&mut self) -> Option<&mut T::Value>
     where
-        T: TypeMapKey
+        T: TypeMapKey,
     {
         self.0
             .get_mut(&TypeId::of::<T>())
@@ -186,7 +184,7 @@ impl TypeMap {
     #[inline]
     pub fn remove<T>(&mut self) -> Option<T::Value>
     where
-        T: TypeMapKey
+        T: TypeMapKey,
     {
         self.0
             .remove(&TypeId::of::<T>())
@@ -201,8 +199,8 @@ impl Default for TypeMap {
     }
 }
 
-impl Extend<(TypeId, Box<dyn Any + Send + Sync>)> for TypeMap  {
-    fn extend<T: IntoIterator<Item=(TypeId, Box<dyn Any + Send + Sync>)>>(&mut self, iter: T) {
+impl Extend<(TypeId, Box<dyn Any + Send + Sync>)> for TypeMap {
+    fn extend<T: IntoIterator<Item = (TypeId, Box<dyn Any + Send + Sync>)>>(&mut self, iter: T) {
         self.0.extend(iter)
     }
 }
@@ -217,7 +215,7 @@ impl IntoIterator for TypeMap {
 }
 
 impl FromIterator<(TypeId, Box<dyn Any + Send + Sync>)> for TypeMap {
-    fn from_iter<T: IntoIterator<Item=(TypeId, Box<dyn Any + Send + Sync>)>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = (TypeId, Box<dyn Any + Send + Sync>)>>(iter: T) -> Self {
         Self(HashMap::from_iter(iter))
     }
 }
@@ -254,7 +252,7 @@ where
     #[inline]
     pub fn or_insert_with<F>(self, f: F) -> &'a mut K::Value
     where
-        F: FnOnce() -> K::Value
+        F: FnOnce() -> K::Value,
     {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -265,13 +263,13 @@ where
     #[inline]
     pub fn and_modify<F>(self, f: F) -> Self
     where
-        F: FnOnce(&mut K::Value)
+        F: FnOnce(&mut K::Value),
     {
         match self {
             Entry::Occupied(mut entry) => {
                 f(entry.get_mut());
                 Entry::Occupied(entry)
-            },
+            }
             Entry::Vacant(entry) => Entry::Vacant(entry),
         }
     }
@@ -280,7 +278,7 @@ where
 impl<'a, K> Entry<'a, K>
 where
     K: TypeMapKey,
-    K::Value: Default
+    K::Value: Default,
 {
     #[inline]
     pub fn or_default(self) -> &'a mut K::Value {
