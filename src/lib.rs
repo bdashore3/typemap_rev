@@ -6,8 +6,84 @@ use std::collections::hash_map::{
     Entry as HashMapEntry, OccupiedEntry as HashMapOccupiedEntry, VacantEntry as HashMapVacantEntry,
 };
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::iter::FromIterator;
 use std::marker::PhantomData;
+
+/// The default type used for storing values in a [`TypeMap`].
+pub type DefaultStorage = dyn Any + Send + Sync;
+
+/// Storage type that allows cloning a [`TypeMap`] if the values inside it all
+/// implement [`Clone`].
+pub trait CloneableStorage: Any + Send + Sync {
+    #[doc(hidden)]
+    fn clone_storage(&self) -> Box<dyn CloneableStorage>;
+}
+
+impl<T: Any + Send + Sync + Clone> CloneableStorage for T {
+    fn clone_storage(&self) -> Box<dyn CloneableStorage> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn CloneableStorage> {
+    fn clone(&self) -> Self {
+        (**self).clone_storage()
+    }
+}
+
+/// Storage type that allows formatting a [`TypeMap`] in debug representation if
+/// the values inside it all implement [`Debug`].
+pub trait DebuggableStorage: Any + Send + Sync + Debug {}
+impl<T: Any + Send + Sync + Debug> DebuggableStorage for T {}
+
+/// Storage type that allows cloning and formatting a [`TypeMap`] in debug representation if
+/// the values inside it all implement [`Clone`] *and* [`Debug`].
+pub trait CloneDebuggableStorage: DebuggableStorage {
+    #[doc(hidden)]
+    fn clone_storage(&self) -> Box<dyn CloneDebuggableStorage>;
+}
+
+impl<T: DebuggableStorage + Clone> CloneDebuggableStorage for T {
+    fn clone_storage(&self) -> Box<dyn CloneDebuggableStorage> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn CloneDebuggableStorage> {
+    fn clone(&self) -> Self {
+        (**self).clone_storage()
+    }
+}
+
+#[doc(hidden)]
+pub trait IntoBox<T: ?Sized> {
+    fn into_box(self) -> Box<T>;
+}
+
+impl<T: Any + Send + Sync> IntoBox<(dyn Any + Send + Sync)> for T {
+    fn into_box(self) -> Box<dyn Any + Send + Sync> {
+        Box::new(self)
+    }
+}
+
+impl<T: CloneableStorage> IntoBox<dyn CloneableStorage> for T {
+    fn into_box(self) -> Box<dyn CloneableStorage> {
+        Box::new(self)
+    }
+}
+
+impl<T: DebuggableStorage> IntoBox<dyn DebuggableStorage> for T {
+    fn into_box(self) -> Box<dyn DebuggableStorage> {
+        Box::new(self)
+    }
+}
+
+impl<T: CloneDebuggableStorage> IntoBox<dyn CloneDebuggableStorage> for T {
+    fn into_box(self) -> Box<dyn CloneDebuggableStorage> {
+        Box::new(self)
+    }
+}
 
 /// TypeMapKey is used to declare key types that are eligible for use
 /// with [`TypeMap`].
@@ -15,7 +91,7 @@ use std::marker::PhantomData;
 /// [`TypeMap`]: struct.TypeMap.html
 pub trait TypeMapKey: Any {
     /// Defines the value type that corresponds to this `TypeMapKey`.
-    type Value: Send + Sync;
+    type Value: Any + Send + Sync;
 }
 
 /// TypeMap is a simple abstraction around the standard library's [`HashMap`]
@@ -23,12 +99,20 @@ pub trait TypeMapKey: Any {
 /// retrieval.
 ///
 /// [`HashMap`]: std::collections::HashMap
-pub struct TypeMap(HashMap<TypeId, Box<(dyn Any + Send + Sync)>>);
+pub struct TypeMap<S: ?Sized = DefaultStorage>(HashMap<TypeId, Box<S>>);
 
 impl TypeMap {
     /// Creates a new instance of `TypeMap`.
     #[inline]
     pub fn new() -> Self {
+        Self::custom()
+    }
+}
+
+impl<S: ?Sized + Any + Send + Sync> TypeMap<S> {
+    /// Creates a new instance of `TypeMap` with a custom storage type.
+    #[inline]
+    pub fn custom() -> Self {
         Self(HashMap::new())
     }
 
@@ -98,17 +182,19 @@ impl TypeMap {
     pub fn insert<T>(&mut self, value: T::Value)
     where
         T: TypeMapKey,
+        T::Value: IntoBox<S>,
     {
-        self.0.insert(TypeId::of::<T>(), Box::new(value));
+        self.0.insert(TypeId::of::<T>(), value.into_box());
     }
 
     /// Retrieve the entry based on its [`TypeMapKey`]
     ///
     /// [`TypeMapKey`]: trait.TypeMapKey.html
     #[inline]
-    pub fn entry<T>(&mut self) -> Entry<'_, T>
+    pub fn entry<T>(&mut self) -> Entry<'_, T, S>
     where
         T: TypeMapKey,
+        T::Value: IntoBox<S>,
     {
         match self.0.entry(TypeId::of::<T>()) {
             HashMapEntry::Occupied(entry) => Entry::Occupied(OccupiedEntry {
@@ -145,10 +231,11 @@ impl TypeMap {
     pub fn get<T>(&self) -> Option<&T::Value>
     where
         T: TypeMapKey,
+        T::Value: IntoBox<S>,
     {
         self.0
             .get(&TypeId::of::<T>())
-            .and_then(|b| b.downcast_ref::<T::Value>())
+            .map(|b| unsafe { &*((&**b) as *const _ as *const T::Value) })
     }
 
     /// Retrieve a mutable reference to a value based on its [`TypeMapKey`].
@@ -176,14 +263,16 @@ impl TypeMap {
     pub fn get_mut<T>(&mut self) -> Option<&mut T::Value>
     where
         T: TypeMapKey,
+        T::Value: IntoBox<S>,
     {
         self.0
             .get_mut(&TypeId::of::<T>())
-            .and_then(|b| b.downcast_mut::<T::Value>())
+            .map(|b| unsafe { &mut *((&mut **b) as *mut _ as *mut T::Value) })
     }
 
-    /// Removes a value from the map based on its [`TypeMapKey`], returning the value or `None` if
-    /// the key has not been in the map.
+    /// Removes a value from the map based on its [`TypeMapKey`].
+    ///
+    /// Returns a boolean indicating whether the value existed prior to its removal.
     ///
     /// ```rust
     /// use typemap_rev::{TypeMap, TypeMapKey};
@@ -196,44 +285,57 @@ impl TypeMap {
     ///
     /// let mut map = TypeMap::new();
     /// map.insert::<Text>(String::from("Hello TypeMap!"));
-    /// assert!(map.remove::<Text>().is_some());
+    /// assert!(map.remove::<Text>());
     /// assert!(map.get::<Text>().is_none());
     /// ```
     #[inline]
-    pub fn remove<T>(&mut self) -> Option<T::Value>
+    pub fn remove<T>(&mut self) -> bool
     where
         T: TypeMapKey,
+        T::Value: IntoBox<S>,
     {
-        self.0
-            .remove(&TypeId::of::<T>())
-            .and_then(|b| (b as Box<dyn Any>).downcast::<T::Value>().ok())
-            .map(|b| *b)
+        self.0.remove(&TypeId::of::<T>()).is_some()
     }
 }
 
-impl Default for TypeMap {
+impl<S: ?Sized> Default for TypeMap<S> {
     fn default() -> Self {
         Self(HashMap::default())
     }
 }
 
-impl Extend<(TypeId, Box<dyn Any + Send + Sync>)> for TypeMap {
-    fn extend<T: IntoIterator<Item = (TypeId, Box<dyn Any + Send + Sync>)>>(&mut self, iter: T) {
+impl<S: ?Sized + DebuggableStorage> Debug for TypeMap<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
+
+impl<S: ?Sized> Clone for TypeMap<S>
+where
+    Box<S>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<S: ?Sized> Extend<(TypeId, Box<S>)> for TypeMap<S> {
+    fn extend<T: IntoIterator<Item = (TypeId, Box<S>)>>(&mut self, iter: T) {
         self.0.extend(iter)
     }
 }
 
-impl IntoIterator for TypeMap {
-    type Item = (TypeId, Box<dyn Any + Send + Sync>);
-    type IntoIter = IntoIter<TypeId, Box<dyn Any + Send + Sync>>;
+impl<S: ?Sized> IntoIterator for TypeMap<S> {
+    type Item = (TypeId, Box<S>);
+    type IntoIter = IntoIter<TypeId, Box<S>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl FromIterator<(TypeId, Box<dyn Any + Send + Sync>)> for TypeMap {
-    fn from_iter<T: IntoIterator<Item = (TypeId, Box<dyn Any + Send + Sync>)>>(iter: T) -> Self {
+impl<S: ?Sized> FromIterator<(TypeId, Box<S>)> for TypeMap<S> {
+    fn from_iter<T: IntoIterator<Item = (TypeId, Box<S>)>>(iter: T) -> Self {
         Self(HashMap::from_iter(iter))
     }
 }
@@ -247,17 +349,19 @@ impl FromIterator<(TypeId, Box<dyn Any + Send + Sync>)> for TypeMap {
 ///
 /// [`TypeMap`]: struct.TypeMap.html
 /// [`Entry`]: std::collections::hash_map::Entry
-pub enum Entry<'a, K>
+pub enum Entry<'a, K, S: ?Sized = DefaultStorage>
 where
     K: TypeMapKey,
 {
-    Occupied(OccupiedEntry<'a, K>),
-    Vacant(VacantEntry<'a, K>),
+    Occupied(OccupiedEntry<'a, K, S>),
+    Vacant(VacantEntry<'a, K, S>),
 }
 
-impl<'a, K> Entry<'a, K>
+impl<'a, K, S> Entry<'a, K, S>
 where
     K: TypeMapKey,
+    K::Value: IntoBox<S>,
+    S: ?Sized + Any + Send + Sync,
 {
     #[inline]
     pub fn or_insert(self, value: K::Value) -> &'a mut K::Value {
@@ -293,10 +397,11 @@ where
     }
 }
 
-impl<'a, K> Entry<'a, K>
+impl<'a, K, S> Entry<'a, K, S>
 where
     K: TypeMapKey,
-    K::Value: Default,
+    K::Value: Default + IntoBox<S>,
+    S: ?Sized + Any + Send + Sync,
 {
     #[inline]
     pub fn or_default(self) -> &'a mut K::Value {
@@ -304,36 +409,38 @@ where
     }
 }
 
-pub struct OccupiedEntry<'a, K>
+pub struct OccupiedEntry<'a, K, S: ?Sized = DefaultStorage>
 where
     K: TypeMapKey,
 {
-    entry: HashMapOccupiedEntry<'a, TypeId, Box<(dyn Any + Send + Sync)>>,
+    entry: HashMapOccupiedEntry<'a, TypeId, Box<S>>,
     _marker: PhantomData<&'a K::Value>,
 }
 
-impl<'a, K> OccupiedEntry<'a, K>
+impl<'a, K, S> OccupiedEntry<'a, K, S>
 where
     K: TypeMapKey,
+    K::Value: IntoBox<S>,
+    S: ?Sized + Any + Send + Sync,
 {
     #[inline]
     pub fn get(&self) -> &K::Value {
-        self.entry.get().downcast_ref().unwrap()
+        unsafe { &*((&**self.entry.get()) as *const _ as *const K::Value) }
     }
 
     #[inline]
     pub fn get_mut(&mut self) -> &mut K::Value {
-        self.entry.get_mut().downcast_mut().unwrap()
+        unsafe { &mut *((&mut **self.entry.get_mut()) as *mut _ as *mut K::Value) }
     }
 
     #[inline]
     pub fn into_mut(self) -> &'a mut K::Value {
-        self.entry.into_mut().downcast_mut().unwrap()
+        unsafe { &mut *((&mut **self.entry.into_mut()) as *mut _ as *mut K::Value) }
     }
 
     #[inline]
     pub fn insert(&mut self, value: K::Value) {
-        self.entry.insert(Box::new(value));
+        self.entry.insert(value.into_box());
     }
 
     #[inline]
@@ -342,21 +449,24 @@ where
     }
 }
 
-pub struct VacantEntry<'a, K>
+pub struct VacantEntry<'a, K, S: ?Sized = DefaultStorage>
 where
     K: TypeMapKey,
 {
-    entry: HashMapVacantEntry<'a, TypeId, Box<(dyn Any + Send + Sync)>>,
+    entry: HashMapVacantEntry<'a, TypeId, Box<S>>,
     _marker: PhantomData<&'a K::Value>,
 }
 
-impl<'a, K> VacantEntry<'a, K>
+impl<'a, K, S> VacantEntry<'a, K, S>
 where
     K: TypeMapKey,
+    K::Value: IntoBox<S>,
+    S: ?Sized + Any + Send + Sync,
 {
     #[inline]
     pub fn insert(self, value: K::Value) -> &'a mut K::Value {
-        self.entry.insert(Box::new(value)).downcast_mut().unwrap()
+        let value = self.entry.insert(value.into_box());
+        unsafe { &mut *((&mut **value) as *mut _ as *mut K::Value) }
     }
 }
 
@@ -419,11 +529,10 @@ mod test {
         // This will give a &String
         assert_eq!(map.get::<Text>().unwrap(), "foobar");
 
-        // Ensure we get an owned String back.
-        let original: String = map.remove::<Text>().unwrap();
-        assert_eq!(original, "foobar");
+        // Ensure the String was successfully removed.
+        assert!(map.remove::<Text>());
 
-        // Ensure our String is gone from the map.
+        // Ensure our String is really gone from the map.
         assert!(map.get::<Text>().is_none());
     }
 
@@ -433,7 +542,7 @@ mod test {
 
         ensure_default::<TypeMap>();
 
-        let map = TypeMap::default();
+        let map = TypeMap::<DefaultStorage>::default();
         assert!(map.get::<Text>().is_none());
     }
 
@@ -461,5 +570,34 @@ mod test {
         // ensuring that the new map now contains the entries from the first one
         let original = map_2.get::<Text>().unwrap();
         assert_eq!(original, "foobar");
+    }
+
+    fn is_debug<T: Debug>() {}
+    fn is_clone<T: Clone>() {}
+
+    #[test]
+    fn typemap_debug() {
+        is_debug::<i32>();
+        is_debug::<TypeMap<dyn DebuggableStorage>>();
+        is_debug::<TypeMap<dyn CloneDebuggableStorage>>();
+    }
+
+    #[test]
+    fn typemap_clone() {
+        is_clone::<i32>();
+        is_clone::<TypeMap<dyn CloneableStorage>>();
+        is_clone::<TypeMap<dyn CloneDebuggableStorage>>();
+
+        let mut map = TypeMap::<dyn CloneableStorage>::custom();
+        map.insert::<Text>(String::from("foo"));
+
+        let map_2 = map.clone();
+        assert_eq!(*map_2.get::<Text>().unwrap(), "foo");
+
+        let mut map = TypeMap::<dyn CloneDebuggableStorage>::custom();
+        map.insert::<Text>(String::from("foo"));
+
+        let map_2 = map.clone();
+        assert_eq!(*map_2.get::<Text>().unwrap(), "foo");
     }
 }
