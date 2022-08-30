@@ -8,4 +8,4 @@ homepage = "https://github.com/bdashore3/typemap_rev"
 license = "ISC"
 readme = "README.md"
 keywords = ["type", "typemap"]
-edition = "2018"
+edition = "2021"
