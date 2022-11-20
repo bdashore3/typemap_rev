@@ -285,16 +285,18 @@ impl<S: ?Sized + Any + Send + Sync> TypeMap<S> {
     ///
     /// let mut map = TypeMap::new();
     /// map.insert::<Text>(String::from("Hello TypeMap!"));
-    /// assert!(map.remove::<Text>());
+    /// assert!(map.remove::<Text>().is_some());
     /// assert!(map.get::<Text>().is_none());
     /// ```
     #[inline]
-    pub fn remove<T>(&mut self) -> bool
+    pub fn remove<T>(&mut self) -> Option<T::Value>
     where
         T: TypeMapKey,
         T::Value: IntoBox<S>,
     {
-        self.0.remove(&TypeId::of::<T>()).is_some()
+        self.0
+            .remove(&TypeId::of::<T>())
+            .map(|b| *unsafe { Box::from_raw(Box::into_raw(b) as *mut T::Value) })
     }
 }
 
@@ -529,8 +531,9 @@ mod test {
         // This will give a &String
         assert_eq!(map.get::<Text>().unwrap(), "foobar");
 
-        // Ensure the String was successfully removed.
-        assert!(map.remove::<Text>());
+        // Ensure we get an owned String back.
+        let original: String = map.remove::<Text>().unwrap();
+        assert_eq!(original, "foobar");
 
         // Ensure our String is really gone from the map.
         assert!(map.get::<Text>().is_none());
